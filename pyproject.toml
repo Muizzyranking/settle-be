@@ -18,7 +18,7 @@ dependencies = [
     "redis>=8.0.1",
     "reds>=0.1.9",
     "sqlalchemy>=2.0.51",
-    "uvicorn>=0.49.0",
+    "uvicorn[standard]>=0.49.0",
 ]
 
 [dependency-groups]
