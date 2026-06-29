@@ -19,21 +19,8 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 def verify_nomba_signature(payload: dict, signature: str, timestamp: str) -> bool:
     """
-    Verify that the webhook request truly came from Nomba.
-
-    Nomba signs the payload using HMAC-SHA256 with a specific string format:
-    event_type:requestId:userId:walletId:transactionId:type:time:responseCode:timestamp
-
-    Args:
-        payload: The parsed JSON payload from the webhook
-        signature: The nomba-signature header value
-        timestamp: The nomba-timestamp header value
-        secret: Your webhook secret key from the Nomba dashboard
-
-    Returns:
-        True if signature is valid, False otherwise
+    Verify Nomba webhook signature using HMAC-SHA256.
     """
-    secret = settings.NOMBA_WEBHOOK_SECRET
     try:
         data = payload.get("data", {})
         merchant = data.get("merchant", {})
@@ -63,7 +50,9 @@ def verify_nomba_signature(payload: dict, signature: str, timestamp: str) -> boo
 
         # Generate HMAC-SHA256 signature
         digest = hmac.new(
-            secret.encode("utf-8"), hashing_payload.encode("utf-8"), hashlib.sha256
+            settings.NOMBA_WEBHOOK_SECRET.encode("utf-8"),
+            hashing_payload.encode("utf-8"),
+            hashlib.sha256,
         ).digest()
 
         expected_signature = base64.b64encode(digest).decode("utf-8")
