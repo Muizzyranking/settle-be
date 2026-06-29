@@ -1,26 +1,13 @@
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.12-slim-bookworm
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-
 RUN uv sync --frozen --no-dev --no-install-project
 
-FROM python:3.12-slim-bookworm AS runtime
-
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-
-WORKDIR /app
-
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
-COPY --from=builder /app/.venv /app/.venv
-
-COPY --chown=appuser:appgroup . .
-
-USER appuser
+COPY . .
 
 EXPOSE 8000
 
