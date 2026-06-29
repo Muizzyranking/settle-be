@@ -1,7 +1,7 @@
 [project]
-name = "settle-be"
+name = "Settle-API"
 version = "0.1.0"
-description = "Add your description here"
+description = "Payment collection infrastructure for Nigerian businesses and developers."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -28,3 +28,19 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.15.20",
 ]
+
+[tool.ty.rules]
+missing-argument = "ignore"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = [ "E", "F", "I", "B", "UP" ]
+
+ignore = [ "E501", "UP017", "B008", "UP042" ]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

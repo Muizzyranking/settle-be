@@ -638,7 +638,7 @@ wheels = [
 ]
 
 [[package]]
-name = "settle-be"
+name = "settle-api"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
