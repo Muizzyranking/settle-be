@@ -19,9 +19,9 @@ class Settings(BaseSettings):
     # Database
     DB_HOST: str | None = None
     DB_PORT: int | None = 5432
-    DB_USER: str | None
-    DB_PASSWORD: str | None
-    DB_NAME: str | None
+    DB_USER: str | None = None
+    DB_PASSWORD: str | None = None
+    DB_NAME: str | None = None
     RAW_DATABASE_URL: str | None = None
 
     @property
