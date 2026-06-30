@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,6 +8,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
     # App
@@ -45,12 +47,24 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    NOMBA_SANDBOX_URL: str = "https://sandbox.api.nomba.com/v1"
+    NOMBA_PRODUCTION_URL: str = "https://api.nomba.com/v1"
+
+    @property
+    def NOMBA_BASE_URL(self) -> str:
+        if self.APP_ENV == "production":
+            return self.NOMBA_PRODUCTION_URL
+        return self.NOMBA_SANDBOX_URL
+
     # Nomba
     NOMBA_CLIENT_ID: str
     NOMBA_CLIENT_SECRET: str
     NOMBA_ACCOUNT_ID: str
-    NOMBA_BASE_URL: str = "https://api.nomba.com/v1"
     NOMBA_WEBHOOK_SECRET: str
+
+    # Email (Resend)
+    RESEND_API_KEY: str | None = None
+    EMAIL_FROM: str = "notifications@settle.ng"
 
 
 @lru_cache
