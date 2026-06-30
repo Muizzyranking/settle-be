@@ -4,10 +4,11 @@ import hmac
 import json
 import logging
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.services.recouncilation import reconcile_payment
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -72,6 +73,38 @@ def verify_nomba_signature(payload: dict, signature: str, timestamp: str) -> boo
     except Exception as e:
         logger.error(f"Error verifying signature: {e}")
         return False
+
+
+def _verify_signature(payload: bytes, signature: str) -> bool:
+    expected = hmac.new(
+        settings.NOMBA_WEBHOOK_SECRET.encode(), payload, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
+@router.post("/nomba2")
+async def nomba_webhook2(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    nomba_signature: str | None = Header(default=None),
+):
+    raw_body = await request.body()
+
+    if settings.NOMBA_WEBHOOK_SECRET and nomba_signature:
+        print("endter")
+        if not _verify_signature(raw_body, nomba_signature):
+            logger.warning("Invalid Nomba webhook signature")
+            raise HTTPException(status_code=401, detail="Invalid signature")
+
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
+
+    background_tasks.add_task(
+        reconcile_payment, payload=payload, raw_payload=raw_body.decode()
+    )
+    return {"status": "received"}
 
 
 @router.post("/nomba")
