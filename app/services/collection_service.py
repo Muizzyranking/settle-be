@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.account import VirtualAccount
 from app.models.collection import Collection, RecurringSchedule
@@ -38,6 +39,13 @@ async def create_collection(
         await db.flush()
         await db.refresh(collection, attribute_names=["recurrence"])
 
+    stmt = (
+        select(Collection)
+        .where(Collection.id == collection.id)
+        .options(selectinload(Collection.recurrence))
+    )
+    result = await db.execute(stmt)
+    collection = result.scalar_one()
     return collection
 
 
