@@ -50,6 +50,7 @@ class Collection(BaseModel):
         back_populates="collection",
         uselist=False,
         cascade="all, delete-orphan",
+        lazy="selectin",
     )
 
 
