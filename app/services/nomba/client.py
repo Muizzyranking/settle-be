@@ -36,7 +36,10 @@ class NombaClient:
 
     async def _get_cached_token(self) -> str | None:
         redis = get_redis()
-        return str(await redis.get(TOKEN_CACHE_KEY))
+        value = await redis.get(TOKEN_CACHE_KEY)
+        if value is None:
+            return None
+        return value.decode() if isinstance(value, bytes) else str(value)
 
     async def _issue_token(self) -> str:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -105,31 +108,35 @@ class NombaClient:
         """
         token = await self._get_token()
 
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.request(
-                method,
-                f"{self._base_url}{path}",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "accountId": settings.NOMBA_ACCOUNT_ID,
-                    "Content-Type": "application/json",
-                },
-                json=json,
-                params=params,
-            )
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.request(
+                    method,
+                    f"{self._base_url}{path}",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "accountId": settings.NOMBA_ACCOUNT_ID,
+                        "Content-Type": "application/json",
+                    },
+                    json=json,
+                    params=params,
+                )
 
-        if response.status_code == 401 and retry_on_auth_failure:
-            logger.info("Nomba token rejected — clearing cache and retrying once")
-            redis = get_redis()
-            await redis.delete(TOKEN_CACHE_KEY)
-            return await self.request(
-                method, path, json=json, params=params, retry_on_auth_failure=False
-            )
+            if response.status_code == 401 and retry_on_auth_failure:
+                logger.info("Nomba token rejected — clearing cache and retrying once")
+                redis = get_redis()
+                await redis.delete(TOKEN_CACHE_KEY)
+                return await self.request(
+                    method, path, json=json, params=params, retry_on_auth_failure=False
+                )
 
-        if response.status_code >= 400:
-            raise NombaAPIError(response.status_code, response.text)
+            if response.status_code >= 400:
+                raise NombaAPIError(response.status_code, response.text)
 
-        return response.json()
+            return response.json()
+        except httpx.RequestError as e:
+            logger.error(f"Nomba request failed: {e}")
+            raise NombaAPIError(500, str(e)) from e
 
     async def get(self, path: str, params: dict | None = None) -> dict:
         return await self.request("GET", path, params=params)
