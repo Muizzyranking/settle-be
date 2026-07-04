@@ -1,15 +1,12 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_tenant
-from app.db.database import get_db
+from app.api.deps import CurrentTenant, DBSession
 from app.models.account import VirtualAccount
-from app.models.tenant import Tenant
 from app.models.transaction import Transaction, TransactionStatus
 from app.schemas.transaction import TransactionListResponse, TransactionOut
 from app.services.receipt import generate_receipt
@@ -19,16 +16,15 @@ router = APIRouter()
 
 @router.get("", response_model=TransactionListResponse)
 async def list_transactions(
+    db: DBSession,
+    tenant: CurrentTenant,
     page: int = 1,
     limit: int = 20,
     status: TransactionStatus | None = None,
     account_id: uuid.UUID | None = None,
     from_date: datetime | None = None,
     to_date: datetime | None = None,
-    db: AsyncSession = Depends(get_db),
-    tenant: Tenant = Depends(get_current_tenant),
 ):
-    # scope to this tenant's accounts only
     tenant_account_ids = await db.scalars(
         select(VirtualAccount.id).where(VirtualAccount.tenant_id == tenant.id)
     )
@@ -64,8 +60,8 @@ async def list_transactions(
 
 @router.get("/misdirected", response_model=list[TransactionOut])
 async def list_misdirected(
-    db: AsyncSession = Depends(get_db),
-    tenant: Tenant = Depends(get_current_tenant),
+    db: DBSession,
+    _: CurrentTenant,
 ):
     # misdirected transactions have no virtual_account_id — we can't scope them
     # to a tenant via a join, so we return all misdirected for now and flag this
@@ -81,8 +77,8 @@ async def list_misdirected(
 @router.get("/{transaction_id}", response_model=TransactionOut)
 async def get_transaction(
     transaction_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    tenant: Tenant = Depends(get_current_tenant),
+    db: DBSession,
+    tenant: CurrentTenant,
 ):
     transaction = await db.get(Transaction, transaction_id)
     if not transaction:
@@ -101,8 +97,8 @@ async def get_transaction(
 async def download_receipt(
     account_id: uuid.UUID,
     transaction_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    tenant: Tenant = Depends(get_current_tenant),
+    db: DBSession,
+    tenant: CurrentTenant,
 ):
     account = await db.scalar(
         select(VirtualAccount).where(

@@ -36,7 +36,6 @@ def verify_nomba_signature(payload: dict, signature: str, timestamp: str) -> boo
         transaction_time = transaction.get("time", "")
         response_code = transaction.get("responseCode", "")
 
-        # Handle "null" string as empty per Nomba docs
         if response_code == "null":
             response_code = ""
 
