@@ -9,6 +9,7 @@ from app.models.account import VirtualAccount
 from app.models.collection import RecurringSchedule
 from app.services.nomba.accounts import nomba_accounts
 from app.services.nomba.client import NombaAPIError
+from app.services.notifications.notifications import notify_customer_payment_link
 from app.services.recurrence import compute_next_due_date
 
 
@@ -28,8 +29,12 @@ def build_nomba_account_ref(tenant_id: uuid.UUID, customer_ref: str) -> str:
     Deterministic, unique across tenants.
     """
     short_tenant = str(tenant_id).split("-")[0]
+    short_ref = customer_ref[:13].replace(" ", "-")
     short_unique = uuid.uuid4().hex[:8]
-    return f"settle-{short_tenant}-{customer_ref}-{short_unique}"
+    ref = f"settle-{short_tenant}-{short_ref}-{short_unique}"
+    if len(ref) < 16:
+        ref = ref.ljust(16, "0")
+    return ref[:64]
 
 
 async def provision_account(
@@ -44,11 +49,6 @@ async def provision_account(
     description: str | None = None,
     expires_at: datetime | None = None,
 ) -> VirtualAccount:
-    """
-    Creates a virtual account on Nomba, then persists it locally. If the collection
-    has an active recurring schedule, next_due_date is computed immediately from
-    created_at — a freshly provisioned account is "due" from day one.
-    """
     existing = await db.scalar(
         select(VirtualAccount).where(
             VirtualAccount.tenant_id == tenant_id,
@@ -110,6 +110,17 @@ async def provision_account(
     )
     db.add(account)
     await db.flush()
+    if customer_email:
+        await notify_customer_payment_link(
+            tenant_id=tenant_id,
+            customer_name=customer_name,
+            customer_email=customer_email,
+            account_id=str(account.id),
+            bank_account_number=account.bank_account_number,
+            bank_name=account.bank_name,
+            expected_amount=expected_amount,
+            description=description,
+        )
     return account
 
 
