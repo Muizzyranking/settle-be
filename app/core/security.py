@@ -11,6 +11,7 @@ from app.core.config import settings
 pwd_hasher = PasswordHash.recommended()
 
 API_KEY_PREFIX = "sk_live_"
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -39,9 +40,14 @@ def generate_api_key() -> ApiKeyResponse:
     )
 
 
-def create_access_token(subject: str, extra: dict | None = None) -> str:
+def create_access_token(
+    subject: str,
+    token_version: int,
+    extra: dict | None = None,
+) -> str:
     payload = {
         "sub": subject,
+        "tv": token_version,
         "iat": datetime.now(timezone.utc),
         "exp": datetime.now(timezone.utc)
         + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -57,3 +63,13 @@ def decode_access_token(token: str) -> dict:
         settings.SECRET_KEY,
         algorithms=[settings.JWT_ALGORITHM],
     )
+
+
+def generate_refresh_token() -> tuple[str, str]:
+    """Returns (raw_token, token_hash). Store only the hash."""
+    raw = secrets.token_hex(40)
+    return raw, hashlib.sha256(raw.encode()).hexdigest()
+
+
+def hash_refresh_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
