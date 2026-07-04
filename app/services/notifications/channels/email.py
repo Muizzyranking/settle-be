@@ -1,15 +1,13 @@
 import logging
 
-import httpx
-
-from app.core.config import settings
 from app.models import Tenant
+from app.services.email_service import email_service
 from app.services.notifications.channels.base import BaseChannel
 from app.services.notifications.context import NotificationContext
 
 logger = logging.getLogger(__name__)
 
-RESEND_API_URL = "https://api.resend.com/emails"
+DEFAULT_TEMPLATE = "notification"
 
 
 class EmailChannel(BaseChannel):
@@ -17,10 +15,8 @@ class EmailChannel(BaseChannel):
     lets the hackathon build run without email wired up yet."""
 
     async def send(self, context: NotificationContext, tenant: Tenant) -> None:
-        if not settings.RESEND_API_KEY:
-            return
 
-        to_email = tenant.email
+        to_email = context.data.get("to_email") or tenant.email
 
         if not to_email:
             logger.warning(
@@ -28,18 +24,24 @@ class EmailChannel(BaseChannel):
             )
             return
 
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.post(
-                    RESEND_API_URL,
-                    headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
-                    json={
-                        "from": settings.EMAIL_FROM,
-                        "to": [to_email],
-                        "subject": context.title,
-                        "html": f"<p>{context.message}</p>",
-                    },
+        template = context.data.get("template", DEFAULT_TEMPLATE)
+        template_context = {
+            "title": context.title,
+            "message": context.message,
+            **{
+                k: v
+                for k, v in context.data.items()
+                if k
+                not in (
+                    "template",
+                    "to_email",
                 )
-                response.raise_for_status()
-        except httpx.HTTPError as exc:
-            logger.warning(f"Email notification failed for {to_email}: {exc}")
+            },
+        }
+
+        await email_service.send(
+            to=to_email,
+            subject=context.title,
+            template=template,
+            context=template_context,
+        )

@@ -13,7 +13,7 @@ NotificationType = Literal[
 @dataclass
 class NotificationContext:
     tenant_id: uuid.UUID
-    type: NotificationType
+    type: NotificationType | str
     title: str
     message: str
     data: dict = field(default_factory=dict)
