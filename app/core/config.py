@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,6 +16,10 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     SECRET_KEY: str
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+    BASE_DIR: Path = Path(__file__).resolve().parent.parent
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    MAX_BANK_ACCOUNTS: int = 3
 
     # Database
     DB_HOST: str | None = None
@@ -72,7 +77,13 @@ class Settings(BaseSettings):
     NOMBA_CLIENT_ID: str
     NOMBA_CLIENT_SECRET: str
     NOMBA_ACCOUNT_ID: str
+    NOMBA_SUB_ACCOUNT_ID: str
     NOMBA_WEBHOOK_SECRET: str
+
+    # --- Google OAuth ---
+    GOOGLE_CLIENT_ID: str | None = None
+    GOOGLE_CLIENT_SECRET: str | None = None
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
     # Email (Resend)
     RESEND_API_KEY: str | None = None
