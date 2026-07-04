@@ -2,13 +2,12 @@ import asyncio
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.database import get_db
+from app.api.deps import DBSession
 from app.db.redis import get_redis
 from app.models.account import VirtualAccount
 from app.models.tenant import Tenant
@@ -33,7 +32,7 @@ class PublicPaymentPageOut(BaseModel):
 @router.get("/{account_id}", response_model=PublicPaymentPageOut)
 async def payment_page(
     account_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DBSession,
 ):
     account = await db.scalar(
         select(VirtualAccount).where(
@@ -64,7 +63,7 @@ async def payment_page(
 @router.get("/{account_id}/status/stream")
 async def payment_status_stream(
     account_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: DBSession,
 ):
     """
     Public SSE stream for the customer payment page. No auth required.
