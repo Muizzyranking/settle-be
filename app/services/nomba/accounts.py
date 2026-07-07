@@ -32,7 +32,7 @@ class NombaVirtualAccountService:
             payload["bvn"] = bvn
 
         response = await nomba_client.post(
-            f"/accounts/virtual/{settings.NOMBA_SUB_ACCOUNT_ID}",
+            f"/v1/accounts/virtual/{settings.NOMBA_SUB_ACCOUNT_ID}",
             json=payload,
         )
         return response["data"]
@@ -40,21 +40,21 @@ class NombaVirtualAccountService:
     async def expire_virtual_account(self, account_ref: str) -> bool:
         response = await nomba_client.request(
             "DELETE",
-            f"/accounts/virtual/{account_ref}",
+            f"/v1/accounts/virtual/{account_ref}",
         )
         return response.get("data", {}).get("expired", False)
 
     async def lookup_virtual_account(self, bank_account_number: str) -> dict:
-        response = await nomba_client.get(f"/accounts/virtual/{bank_account_number}")
+        response = await nomba_client.get(f"/v1/accounts/virtual/{bank_account_number}")
         return response["data"]
 
     async def list_banks(self) -> list[dict]:
-        response = await nomba_client.get("/transfers/banks")
+        response = await nomba_client.get("/v1/transfers/banks")
         return response.get("data", [])
 
     async def lookup_bank_account(self, account_number: str, bank_code: str) -> dict:
         response = await nomba_client.post(
-            "/transfers/bank/lookup",
+            "/v1/transfers/bank/lookup",
             json={"accountNumber": account_number, "bankCode": bank_code},
         )
         return response["data"]
@@ -70,7 +70,7 @@ class NombaVirtualAccountService:
     ) -> dict:
         response = await nomba_client.request(
             "POST",
-            "/v2/transfers/bank",
+            f"/v2/transfers/bank{settings.NOMBA_SUB_ACCOUNT_ID}",
             json={
                 "amount": amount,
                 "accountNumber": account_number,
