@@ -134,6 +134,11 @@ async def _process_payment(db: AsyncSession, payload: dict, raw_payload: str) ->
 
     await _post_to_ledger(db, virtual_account, transaction, amount)
 
+    virtual_account.total_paid = float(
+        Decimal(str(virtual_account.total_paid)) + amount
+    )
+    db.add(virtual_account)
+
     if status in QUALIFYING_STATUSES:
         await _advance_recurrence(db, virtual_account)
 

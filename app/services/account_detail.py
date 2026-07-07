@@ -33,8 +33,9 @@ async def build_account_detail(db: AsyncSession, account: VirtualAccount) -> dic
     expected = float(account.expected_amount) if account.expected_amount else None
     due_status = get_due_status(account.last_paid_at, account.next_due_date)
 
+    total_paid = float(account.total_paid)
     return {
-        "total_paid": balance,
+        "total_paid": total_paid,
         "balance": balance,
         "payment_status": derive_payment_status(balance, expected),
         "due_status": due_status.to_dict() if due_status else None,
