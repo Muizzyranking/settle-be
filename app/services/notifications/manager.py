@@ -36,7 +36,7 @@ class NotificationManager:
     }
 
     async def notify(
-        self, context: NotificationContext, channels: ChannelSelector
+        self, context: NotificationContext, channels: ChannelSelector = None
     ) -> None:
         async with AsyncSessionLocal() as db:
             tenant = await db.scalar(
