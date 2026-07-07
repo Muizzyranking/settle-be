@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block preheader %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 8px; font-family:Georgia, 'Times New Roman', serif; font-size:24px; font-weight:normal; line-height:1.25; color:#0e3b2e; letter-spacing:-0.01em;">
+  {{ title }}
+</h1>
+
+<div style="margin:20px 0 0; font-size:16px; line-height:1.65; color:#1c1b17;">
+  {{ message | safe }}
+</div>
+
+<hr style="margin:32px 0 0; border:none; border-top:1px solid rgba(14,59,46,0.10);">
+
+<p style="margin:16px 0 0; font-size:14px; line-height:1.6; color:#5b8b78;">
+  Best regards,<br>
+  <span style="color:#0e3b2e; font-weight:500;">The Settle Team</span>
+</p>
+
+<p style="margin:16px 0 0; font-size:12px; line-height:1.5; color:#8aa89b;">
+  <a href="{{ app_url }}" target="_blank" style="color:#1f6f54; text-decoration:underline; text-underline-offset:2px;">Go to your dashboard</a>
+</p>
+{% endblock %}

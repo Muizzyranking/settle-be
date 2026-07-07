@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>Settle</title>
+  <!--[if mso]>
+  <xml>
+    <o:OfficeDocumentSettings>
+      <o:PixelsPerInch>96</o:PixelsPerInch>
+    </o:OfficeDocumentSettings>
+  </xml>
+  <![endif]-->
+</head>
+<body style="margin:0; padding:0; background-color:#faf6ec; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#faf6ec;">
+    <tr>
+      <td align="center" style="padding:0;">
+        <!--[if mso]>
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td>
+        <![endif]-->
+
+        <!-- ─── Preheader ─── -->
+        <div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">
+          {% block preheader %}{% endblock %}
+        </div>
+
+        <!-- ─── Main container ─── -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; width:100%; margin:0 auto;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding:48px 24px 32px;">
+              <svg width="160" height="42" viewBox="0 0 216 56" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Settle" style="display:block; margin:0 auto;">
+                <g transform="translate(-4,-5) scale(0.875)">
+                  <rect x="4" y="8" width="38" height="38" rx="9" fill="#D4E9DF"/>
+                  <path d="M22,18 H50 A10,10 0 0 1 60,28 V56 A10,10 0 0 1 50,66 H22 A10,10 0 0 1 12,56 V28 A10,10 0 0 1 22,18 Z M52,22 A5,5 0 1 0 52,32 A5,5 0 1 0 52,22 Z" fill-rule="evenodd" fill="#1F6F54"/>
+                </g>
+                <text x="62" y="38" font-family="Fraunces, 'Iowan Old Style', Georgia, serif" font-size="32" font-weight="480" letter-spacing="-0.5" fill="#0E3B2E">Settle</text>
+              </svg>
+            </td>
+          </tr>
+
+          <!-- Content card -->
+          <tr>
+            <td style="padding:0 20px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fffdf7; border-radius:12px; border:1px solid rgba(14,59,46,0.10);">
+                <tr>
+                  <td style="padding:40px 36px; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:16px; line-height:1.65; color:#1c1b17;">
+                    {% block content %}{% endblock %}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:32px 24px 40px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding-bottom:16px;">
+                    <!-- Small logomark inline -- opt -->
+                    <span style="color:#1f6f54; font-family:Georgia, 'Times New Roman', serif; font-size:14px; font-weight:bold; letter-spacing:-0.3px;">Settle</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:12px; line-height:1.6; color:#164f3e;">
+                    <p style="margin:0 0 4px; color:#5b8b78;">Payment collection infrastructure for Nigerian SMEs.</p>
+                    <p style="margin:0 0 4px; color:#5b8b78;">Built on Nomba.</p>
+                    <p style="margin:0;">
+                      <a href="{{ frontend_url }}" target="_blank" style="color:#1f6f54; text-decoration:underline; text-underline-offset:2px;">settle.ng</a>
+                      &nbsp;&middot;&nbsp;
+                      <a href="mailto:{{ support_email }}" style="color:#1f6f54; text-decoration:underline; text-underline-offset:2px;">{{ support_email }}</a>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-top:12px; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:11px; color:#8aa89b;">
+                    &copy; {{ year }} Settle. All rights reserved.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+
+        <!--[if mso]>
+        </td></tr></table>
+        <![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
