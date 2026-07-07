@@ -9,7 +9,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . .
 
-RUN chmod +x scripts/docker-entrypoint.sh
+RUN chmod +x ./scripts/start.sh
 
 EXPOSE 8000
 
