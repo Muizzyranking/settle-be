@@ -130,7 +130,9 @@ async def get_account(
         raise HTTPException(status_code=404, detail="Account not found")
 
     detail = await build_account_detail(db, account)
-    return AccountDetailOut(**AccountOut.model_validate(account).model_dump(), **detail)
+    base = AccountOut.model_validate(account).model_dump()
+    base.update(detail)
+    return AccountDetailOut(**base)
 
 
 @router.patch("/{account_id}", response_model=AccountOut)
