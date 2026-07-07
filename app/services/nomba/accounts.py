@@ -49,7 +49,7 @@ class NombaVirtualAccountService:
         return response["data"]
 
     async def list_banks(self) -> list[dict]:
-        response = await nomba_client.get("/transfers/bank")
+        response = await nomba_client.get("/transfers/banks")
         return response.get("data", [])
 
     async def lookup_bank_account(self, account_number: str, bank_code: str) -> dict:
