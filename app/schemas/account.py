@@ -43,6 +43,7 @@ class AccountOut(BaseModel):
     description: str | None
     is_active: bool
     total_paid: float
+    payment_status: str
     next_due_date: datetime | None
     created_at: datetime
 

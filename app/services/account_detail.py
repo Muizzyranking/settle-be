@@ -37,6 +37,6 @@ async def build_account_detail(db: AsyncSession, account: VirtualAccount) -> dic
     return {
         "total_paid": total_paid,
         "balance": balance,
-        "payment_status": derive_payment_status(balance, expected),
+        "payment_status": account.payment_status,
         "due_status": due_status.to_dict() if due_status else None,
     }

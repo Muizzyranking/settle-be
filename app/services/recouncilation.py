@@ -16,6 +16,14 @@ from app.services.notifications.context import NotificationContext, Notification
 from app.services.notifications.manager import notification_manager
 from app.services.recurrence import compute_next_due_date
 
+# map TransactionStatus to the virtual account's persisted payment_status
+PAYMENT_STATUS_MAP: dict[TransactionStatus, str] = {
+    TransactionStatus.EXACT: "exact",
+    TransactionStatus.OVERPAID: "overpaid",
+    TransactionStatus.UNDERPAID: "underpaid",
+    TransactionStatus.UNMATCHED: "received",
+}
+
 logger = logging.getLogger(__name__)
 
 ACCOUNT_STATUS_CHANNEL_PREFIX = "settle:account:status:"
@@ -137,6 +145,7 @@ async def _process_payment(db: AsyncSession, payload: dict, raw_payload: str) ->
     virtual_account.total_paid = float(
         Decimal(str(virtual_account.total_paid)) + amount
     )
+    virtual_account.payment_status = PAYMENT_STATUS_MAP.get(status, "unpaid")
     db.add(virtual_account)
 
     if status in QUALIFYING_STATUSES:
