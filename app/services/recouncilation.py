@@ -268,7 +268,7 @@ async def _notify(
                 "customer_ref": virtual_account.customer_ref,
                 "customer_name": virtual_account.customer_name,
                 "amount": float(amount),
-                "status": status.value,
+                "status": status.value if hasattr(status, "value") else status,
             },
         )
     )
@@ -320,7 +320,7 @@ async def _publish_account_status(
     try:
         payload = json.dumps(
             {
-                "status": status.value,
+                "status": status.value if hasattr(status, "value") else status,
                 "amount": float(amount),
                 "expected_amount": float(transaction.expected_amount)
                 if transaction.expected_amount

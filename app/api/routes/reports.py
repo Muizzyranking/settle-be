@@ -171,7 +171,7 @@ async def export_reconciliation(
                 account.bank_account_number if account else "",
                 float(t.expected_amount) if t.expected_amount else "",
                 float(t.amount),
-                t.status.value,
+                t.status.value if hasattr(t.status, "value") else t.status,
                 float(t.difference) if t.difference is not None else "",
                 t.sender_account_name or "",
                 t.sender_bank_name or "",

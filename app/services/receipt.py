@@ -41,7 +41,14 @@ def generate_receipt(
         ["Bank", account.bank_name or "—"],
         ["", ""],
         ["Amount Paid", f"₦{float(transaction.amount):,.2f}"],
-        ["Status", transaction.status.value.upper()],
+        [
+            "Status",
+            (
+                transaction.status.value
+                if hasattr(transaction.status, "value")
+                else transaction.status
+            ).upper(),
+        ],
     ]
 
     if transaction.expected_amount:
