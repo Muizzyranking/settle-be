@@ -16,9 +16,7 @@ logger = logging.getLogger(__name__)
 CACHE_TTL = 60
 
 
-async def get_cached_or_fetch(
-    cache_key: str, fetch_fn, ttl: int = CACHE_TTL
-):
+async def get_cached_or_fetch(cache_key: str, fetch_fn, ttl: int = CACHE_TTL):
     redis = get_redis()
     cached = await redis.get(cache_key)
     if cached is not None:
@@ -71,7 +69,7 @@ async def _get_refund_candidates(
     total_overpaid = 0.0
 
     for acc in accounts:
-        expected = float(acc.expected_amount)
+        expected = float(acc.expected_amount or "0")
         total_paid = float(acc.total_paid)
         overpaid = max(0.0, total_paid - expected)
         if overpaid <= 0:
@@ -113,9 +111,7 @@ async def _get_available_balance(db: AsyncSession, tenant_id) -> float:
 
 
 async def _get_total_withdrawn(db: AsyncSession, tenant_id) -> float:
-    rows = await db.scalars(
-        select(Payout.amount).where(Payout.tenant_id == tenant_id)
-    )
+    rows = await db.scalars(select(Payout.amount).where(Payout.tenant_id == tenant_id))
     return sum(float(a) for a in rows.all())
 
 
@@ -123,16 +119,12 @@ def _overview_cache_key(tenant_id) -> str:
     return f"settle:finance:overview:{tenant_id}"
 
 
-async def build_finance_overview(
-    db: AsyncSession, tenant: Tenant
-) -> dict:
+async def build_finance_overview(db: AsyncSession, tenant: Tenant) -> dict:
     cache_key = _overview_cache_key(tenant.id)
 
     async def fetch():
         bank_account_rows = await db.scalars(
-            select(TenantBankAccount).where(
-                TenantBankAccount.tenant_id == tenant.id
-            )
+            select(TenantBankAccount).where(TenantBankAccount.tenant_id == tenant.id)
         )
         saved_bank_accounts = [
             {
@@ -147,8 +139,8 @@ async def build_finance_overview(
         ]
 
         recent_payouts = await _get_recent_payouts(db, tenant.id)
-        refund_candidates, refundable_overpayments = (
-            await _get_refund_candidates(db, tenant.id)
+        refund_candidates, refundable_overpayments = await _get_refund_candidates(
+            db, tenant.id
         )
         available_balance = await _get_available_balance(db, tenant.id)
         total_withdrawn = await _get_total_withdrawn(db, tenant.id)
@@ -166,7 +158,5 @@ async def build_finance_overview(
     return await get_cached_or_fetch(cache_key, fetch)
 
 
-async def build_payouts_list(
-    db: AsyncSession, tenant: Tenant
-) -> list[dict]:
+async def build_payouts_list(db: AsyncSession, tenant: Tenant) -> list[dict]:
     return await _get_recent_payouts(db, tenant.id, limit=50)
