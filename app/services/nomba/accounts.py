@@ -70,7 +70,7 @@ class NombaVirtualAccountService:
     ) -> dict:
         response = await nomba_client.request(
             "POST",
-            f"/v2/transfers/bank{settings.NOMBA_SUB_ACCOUNT_ID}",
+            f"/v2/transfers/bank/{settings.NOMBA_SUB_ACCOUNT_ID}",
             json={
                 "amount": amount,
                 "accountNumber": account_number,
