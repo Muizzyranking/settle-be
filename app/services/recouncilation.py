@@ -28,6 +28,15 @@ QUALIFYING_STATUSES = (
 )
 
 
+def _parse_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def _determine_status(
     amount: Decimal,
     expected_amount: Decimal | None,
@@ -55,20 +64,24 @@ async def reconcile_payment(payload: dict, raw_payload: str) -> None:
 
 
 async def _process_payment(db: AsyncSession, payload: dict, raw_payload: str) -> None:
-    event = payload.get("event")
-    if event != "payment_success":
-        logger.info(f"Ignoring non-credit event: {event}")
+    event_type = payload.get("event_type")
+    if event_type != "payment_success":
+        logger.info(f"Ignoring non-payment_success event: {event_type}")
         return
-
-    logger.info(f"Full payload data: {json.dumps(payload.get('data', {}), indent=2)}")
-
     data = payload.get("data", {})
-    nomba_transaction_ref = data.get("transactionRef") or data.get("reference")
-    nomba_account_ref = data.get("accountRef") or data.get("virtualAccountRef")
-    amount = Decimal(str(data.get("amount", 0)))
+    txn = data.get("transaction", {})
+    customer = data.get("customer", {})
+
+    logger.info(
+        f"Processing transaction: {txn.get('transactionId')} type={txn.get('type')}"
+    )
+
+    nomba_transaction_ref = txn.get("transactionId")
+    nomba_account_ref = txn.get("aliasAccountReference")
+    amount = Decimal(str(txn.get("transactionAmount", 0)))
 
     if not nomba_transaction_ref:
-        logger.warning("Webhook payload missing transactionRef — skipping")
+        logger.warning("Webhook payload missing transactionId — skipping")
         return
 
     existing = await db.scalar(
@@ -105,16 +118,16 @@ async def _process_payment(db: AsyncSession, payload: dict, raw_payload: str) ->
         nomba_transaction_ref=nomba_transaction_ref,
         nomba_account_ref=nomba_account_ref,
         amount=amount,
-        currency=data.get("currency", "NGN"),
-        sender_account_number=data.get("senderAccountNumber"),
-        sender_account_name=data.get("senderAccountName"),
-        sender_bank_name=data.get("senderBankName"),
-        narration=data.get("narration"),
+        currency="NGN",
+        sender_account_number=customer.get("accountNumber"),
+        sender_account_name=customer.get("senderName"),
+        sender_bank_name=customer.get("bankName"),
+        narration=txn.get("narration"),
         status=status,
         expected_amount=expected_amount,
         difference=difference,
         raw_payload=raw_payload,
-        paid_at=_parse_datetime(data.get("transactionDate") or data.get("createdAt")),
+        paid_at=_parse_datetime(txn.get("time")),
     )
     db.add(transaction)
     await db.flush()
@@ -144,6 +157,9 @@ async def _record_misdirected(
     amount: Decimal,
     raw_payload: str,
 ) -> None:
+    txn = data.get("transaction", {})
+    customer = data.get("customer", {})
+
     logger.warning(
         f"No active virtual account for ref {nomba_account_ref} — recording as misdirected"
     )
@@ -152,16 +168,14 @@ async def _record_misdirected(
             nomba_transaction_ref=nomba_transaction_ref,
             nomba_account_ref=nomba_account_ref or "unknown",
             amount=amount,
-            currency=data.get("currency", "NGN"),
-            sender_account_number=data.get("senderAccountNumber"),
-            sender_account_name=data.get("senderAccountName"),
-            sender_bank_name=data.get("senderBankName"),
-            narration=data.get("narration"),
+            currency="NGN",
+            sender_account_number=customer.get("accountNumber"),
+            sender_account_name=customer.get("senderName"),
+            sender_bank_name=customer.get("bankName"),
+            narration=txn.get("narration"),
             status=TransactionStatus.MISDIRECTED,
             raw_payload=raw_payload,
-            paid_at=_parse_datetime(
-                data.get("transactionDate") or data.get("createdAt")
-            ),
+            paid_at=_parse_datetime(txn.get("time")),
         )
     )
 
@@ -268,11 +282,13 @@ def _build_message(
 ) -> tuple[str, str]:
     name = virtual_account.customer_name
     if status == TransactionStatus.OVERPAID:
+        assert difference is not None
         return (
             "Overpayment received",
             f"{name} paid ₦{amount:,.2f} — ₦{abs(difference):,.2f} more than expected",
         )
     if status == TransactionStatus.UNDERPAID:
+        assert difference is not None
         return (
             "Underpayment received",
             f"{name} paid ₦{amount:,.2f} — ₦{abs(difference):,.2f} short of the expected amount",
