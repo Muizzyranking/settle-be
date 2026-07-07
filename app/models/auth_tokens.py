@@ -49,28 +49,6 @@ class PasswordResetToken(BaseModel):
     tenant: Mapped["Tenant"] = relationship("Tenant")
 
 
-class GoogleOAuthCode(BaseModel):
-    """Short-lived one-time code issued at Google callback, exchanged by the FE for real tokens."""
-
-    __tablename__ = "google_oauth_codes"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
-    )
-    code_hash: Mapped[str] = mapped_column(
-        String(64), unique=True, nullable=False, index=True
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-
-    tenant: Mapped["Tenant"] = relationship("Tenant")
-
-
 class RefreshToken(BaseModel):
     __tablename__ = "refresh_tokens"
 
