@@ -23,133 +23,73 @@ def verify_nomba_signature(payload: dict, signature: str, timestamp: str) -> boo
     Verify Nomba webhook signature using HMAC-SHA256.
     """
     try:
-        data = payload.get("data", {})
-        merchant = data.get("merchant", {})
-        transaction = data.get("transaction", {})
+        m = payload["data"]["merchant"]
+        t = payload["data"]["transaction"]
 
-        event_type = payload.get("event_type", "")
-        request_id = payload.get("requestId", "")
-        user_id = merchant.get("userId", "")
-        wallet_id = merchant.get("walletId", "")
-        transaction_id = transaction.get("transactionId", "")
-        transaction_type = transaction.get("type", "")
-        transaction_time = transaction.get("time", "")
-        response_code = transaction.get("responseCode", "")
-
-        if response_code == "null":
-            response_code = ""
-
-        # Construct the exact hashing payload as specified by Nomba
-        hashing_payload = (
-            f"{event_type}:{request_id}:{user_id}:{wallet_id}:"
-            f"{transaction_id}:{transaction_type}:{transaction_time}:"
-            f"{response_code}:{timestamp}"
+        s = ":".join(
+            [
+                payload["event_type"],
+                payload["requestId"],
+                m["userId"],
+                m["walletId"],
+                t["transactionId"],
+                t["type"],
+                t["time"],
+                t.get("responseCode", ""),
+                timestamp,
+            ]
         )
 
-        logger.info(f"::: payload to hash --> [{hashing_payload}] :::")
-
-        # Generate HMAC-SHA256 signature
         digest = hmac.new(
             settings.NOMBA_WEBHOOK_SECRET.encode("utf-8"),
-            hashing_payload.encode("utf-8"),
+            s.encode("utf-8"),
             hashlib.sha256,
         ).digest()
 
-        expected_signature = base64.b64encode(digest).decode("utf-8")
+        expected = base64.b64encode(digest).decode("utf-8")
+        return hmac.compare_digest(expected, signature)
 
-        logger.info(f"Generated signature [{expected_signature}]")
-        logger.info(f"Expected signature  [{signature}]")
-
-        is_valid = hmac.compare_digest(expected_signature.lower(), signature.lower())
-
-        if is_valid:
-            logger.info(">>>>>>> Signatures match <<<<<<<<<")
-        else:
-            logger.warning("<<<<<<<<< Signatures did not match >>>>>>>>>")
-
-        return is_valid
-
-    except Exception as e:
-        logger.error(f"Error verifying signature: {e}")
+    except (KeyError, TypeError) as e:
+        logger.error(f"Malformed payload for signature verification: {e}")
         return False
-
-
-def _verify_signature(payload: bytes, signature: str) -> bool:
-    expected = hmac.new(
-        settings.NOMBA_WEBHOOK_SECRET.encode(), payload, hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
-
-
-@router.post("/nomba2")
-async def nomba_webhook2(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    nomba_signature: str | None = Header(default=None),
-):
-    raw_body = await request.body()
-
-    if settings.NOMBA_WEBHOOK_SECRET and nomba_signature:
-        print("endter")
-        if not _verify_signature(raw_body, nomba_signature):
-            logger.warning("Invalid Nomba webhook signature")
-            raise HTTPException(status_code=401, detail="Invalid signature")
-
-    try:
-        payload = json.loads(raw_body)
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
-
-    background_tasks.add_task(
-        reconcile_payment, payload=payload, raw_payload=raw_body.decode()
-    )
-    return {"status": "received"}
 
 
 @router.post("/nomba")
 async def nomba_webhook(
     request: Request,
-    nomba_signature: str = Header(None, alias="nomba-signature"),
-    nomba_sig_value: str = Header(None, alias="nomba-sig-value"),
-    nomba_signature_algorithm: str = Header(None, alias="nomba-signature-algorithm"),
-    nomba_signature_version: str = Header(None, alias="nomba-signature-version"),
-    nomba_timestamp: str = Header(None, alias="nomba-timestamp"),
+    background_tasks: BackgroundTasks,
+    nomba_signature: str | None = Header(default=None, alias="nomba-signature"),
+    nomba_timestamp: str | None = Header(default=None, alias="nomba-timestamp"),
 ):
     """
-    webhook endpoint for Nomba.
+    Nomba webhook endpoint.
     """
     body = await request.body()
 
-    logger.info("=" * 50)
     logger.info("=== NOMBA WEBHOOK RECEIVED ===")
-    logger.info("=" * 50)
+    logger.info(f"Headers: signature={nomba_signature}, timestamp={nomba_timestamp}")
 
-    # Log all headers for debugging
-    logger.info("--- Headers ---")
-    logger.info(f"nomba-signature:             {nomba_signature}")
-    logger.info(f"nomba-sig-value:             {nomba_sig_value}")
-    logger.info(f"nomba-signature-algorithm:   {nomba_signature_algorithm}")
-    logger.info(f"nomba-signature-version:     {nomba_signature_version}")
-    logger.info(f"nomba-timestamp:             {nomba_timestamp}")
-
-    # Parse the payload
     try:
         payload = json.loads(body)
-        logger.info("--- Parsed Payload ---")
-        logger.info(f"event_type:  {payload.get('event_type')}")
-        logger.info(f"requestId:   {payload.get('requestId')}")
-        logger.info(f"Full payload: {json.dumps(payload, indent=2)}")
+        logger.info(
+            f"event_type={payload.get('event_type')}, requestId={payload.get('requestId')}"
+        )
     except json.JSONDecodeError as e:
-        logger.warning(f"Raw body (not valid JSON): {body.decode()}")
+        logger.warning(f"Invalid JSON body: {body.decode()}")
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
-    if nomba_signature:
-        is_valid = verify_nomba_signature(payload, nomba_signature, nomba_timestamp)
-        if not is_valid:
-            logger.warning("Webhook signature verification failed!")
-            # raise HTTPException(status_code=401, detail="Invalid signature")
+    if settings.NOMBA_WEBHOOK_SECRET and nomba_signature and nomba_timestamp:
+        if not verify_nomba_signature(payload, nomba_signature, nomba_timestamp):
+            logger.warning("Invalid Nomba webhook signature")
+            raise HTTPException(status_code=401, detail="Invalid signature")
+    else:
+        logger.warning(
+            "Skipping signature verification — missing secret, signature, or timestamp"
+        )
 
-    logger.info("=== END WEBHOOK ===")
+    background_tasks.add_task(
+        reconcile_payment, payload=payload, raw_payload=body.decode()
+    )
 
     return JSONResponse(
         content={
