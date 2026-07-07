@@ -56,9 +56,11 @@ async def reconcile_payment(payload: dict, raw_payload: str) -> None:
 
 async def _process_payment(db: AsyncSession, payload: dict, raw_payload: str) -> None:
     event = payload.get("event")
-    if event not in ("transfer.credit", "virtual_account.credit"):
+    if event != "payment_success":
         logger.info(f"Ignoring non-credit event: {event}")
         return
+
+    logger.info(f"Full payload data: {json.dumps(payload.get('data', {}), indent=2)}")
 
     data = payload.get("data", {})
     nomba_transaction_ref = data.get("transactionRef") or data.get("reference")
