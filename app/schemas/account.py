@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr
 
 class CreateAccountRequest(BaseModel):
     customer_name: str
-    customer_ref: str
+    customer_ref: str | None = None
     customer_email: EmailStr | None = None
     customer_phone: str | None = None
     collection_id: uuid.UUID | None = None

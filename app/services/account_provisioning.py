@@ -1,3 +1,5 @@
+import secrets
+import string
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -24,6 +26,30 @@ class DuplicateCustomerRefError(Exception):
     pass
 
 
+async def _generate_unique_customer_ref(
+    db: AsyncSession, tenant_id: uuid.UUID, max_attempts: int = 5
+) -> str:
+    """Generate a short, unique, tenant-scoped customer reference."""
+    for _ in range(max_attempts):
+        suffix = "".join(
+            secrets.choice(string.ascii_lowercase + string.digits) for _ in range(6)
+        )
+        candidate = f"CUST-{suffix}"
+
+        exists = await db.scalar(
+            select(VirtualAccount).where(
+                VirtualAccount.tenant_id == tenant_id,
+                VirtualAccount.customer_ref == candidate,
+            )
+        )
+        if not exists:
+            return candidate
+
+    raise AccountProvisioningError(
+        "Could not generate a unique customer_ref after multiple attempts"
+    )
+
+
 def build_nomba_account_ref(tenant_id: uuid.UUID, customer_ref: str) -> str:
     """
     Deterministic, unique across tenants.
@@ -41,7 +67,7 @@ async def provision_account(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     customer_name: str,
-    customer_ref: str,
+    customer_ref: str | None = None,
     customer_email: str | None = None,
     customer_phone: str | None = None,
     collection_id: uuid.UUID | None = None,
@@ -49,16 +75,19 @@ async def provision_account(
     description: str | None = None,
     expires_at: datetime | None = None,
 ) -> VirtualAccount:
-    existing = await db.scalar(
-        select(VirtualAccount).where(
-            VirtualAccount.tenant_id == tenant_id,
-            VirtualAccount.customer_ref == customer_ref,
+    if customer_ref is None:
+        customer_ref = await _generate_unique_customer_ref(db, tenant_id)
+    else:
+        existing = await db.scalar(
+            select(VirtualAccount).where(
+                VirtualAccount.tenant_id == tenant_id,
+                VirtualAccount.customer_ref == customer_ref,
+            )
         )
-    )
-    if existing:
-        raise DuplicateCustomerRefError(
-            f"customer_ref '{customer_ref}' already exists for this tenant"
-        )
+        if existing:
+            raise DuplicateCustomerRefError(
+                f"customer_ref '{customer_ref}' already exists for this tenant"
+            )
 
     schedule = None
     if collection_id is not None:
@@ -130,7 +159,7 @@ async def suspend_account(db: AsyncSession, account: VirtualAccount) -> None:
     never have a local record claiming suspended while Nomba still accepts transfers.
     """
     try:
-        await nomba_accounts.suspend_virtual_account(
+        await nomba_accounts.expire_virtual_account(
             account.bank_account_number or account.nomba_account_ref
         )
     except NombaAPIError as exc:
