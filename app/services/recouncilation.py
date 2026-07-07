@@ -11,6 +11,7 @@ from app.db.redis import get_redis
 from app.models.account import VirtualAccount
 from app.models.collection import RecurringSchedule
 from app.models.ledger import LedgerEntry, LedgerEntryType
+from app.models.payout import Payout
 from app.models.transaction import Transaction, TransactionStatus
 from app.services.notifications.context import NotificationContext, NotificationType
 from app.services.notifications.manager import notification_manager
@@ -60,22 +61,24 @@ def _determine_status(
     return TransactionStatus.UNDERPAID, difference
 
 
-async def reconcile_payment(payload: dict, raw_payload: str) -> None:
-    """Entry point called as a background task from the webhook route."""
+async def reconcile_event(payload: dict, raw_payload: str) -> None:
     async with AsyncSessionLocal() as db:
         try:
-            await _process_payment(db, payload, raw_payload)
+            event_type = payload.get("event_type")
+            handler = _EVENT_HANDLERS.get(event_type)
+            if handler is None:
+                logger.info(f"No handler registered for event_type={event_type} — skipping")
+                return
+            await handler(db, payload, raw_payload)
             await db.commit()
         except Exception:
             await db.rollback()
-            logger.exception("Reconciliation failed")
+            logger.exception("Reconciliation failed for %s", payload.get("event_type"))
 
 
-async def _process_payment(db: AsyncSession, payload: dict, raw_payload: str) -> None:
-    event_type = payload.get("event_type")
-    if event_type != "payment_success":
-        logger.info(f"Ignoring non-payment_success event: {event_type}")
-        return
+async def _handle_payment_success(
+    db: AsyncSession, payload: dict, raw_payload: str
+) -> None:
     data = payload.get("data", {})
     txn = data.get("transaction", {})
     customer = data.get("customer", {})
@@ -163,6 +166,81 @@ async def _process_payment(db: AsyncSession, payload: dict, raw_payload: str) ->
     )
 
 
+async def _handle_payout_success(
+    db: AsyncSession, payload: dict, raw_payload: str
+) -> None:
+    data = payload.get("data", {})
+    txn = data.get("transaction", {})
+
+    merchant_tx_ref = txn.get("merchantTxRef")
+    if not merchant_tx_ref:
+        logger.warning("payout_success payload missing merchantTxRef — skipping")
+        return
+
+    payout = await db.scalar(
+        select(Payout).where(Payout.transaction_ref == merchant_tx_ref)
+    )
+    if not payout:
+        logger.warning(
+            f"payout_success: no payout found for ref {merchant_tx_ref} — skipping"
+        )
+        return
+
+    if payout.status == "paid":
+        logger.info(f"Payout {merchant_tx_ref} already marked paid — skipping")
+        return
+
+    fee = Decimal(str(txn.get("fee", 0)))
+    payout.status = "paid"
+    payout.fee = float(fee)
+    db.add(payout)
+    logger.info(f"Payout {merchant_tx_ref} marked as paid (fee: {fee})")
+
+    try:
+        redis = get_redis()
+        await redis.delete(f"settle:finance:overview:{payout.tenant_id}")
+    except Exception:
+        pass
+
+
+async def _handle_payout_refund(
+    db: AsyncSession, payload: dict, raw_payload: str
+) -> None:
+    data = payload.get("data", {})
+    txn = data.get("transaction", {})
+
+    merchant_tx_ref = txn.get("merchantTxRef")
+    if not merchant_tx_ref:
+        logger.warning("payout_refund payload missing merchantTxRef — skipping")
+        return
+
+    payout = await db.scalar(
+        select(Payout).where(Payout.transaction_ref == merchant_tx_ref)
+    )
+    if not payout:
+        logger.warning(
+            f"payout_refund: no payout found for ref {merchant_tx_ref} — skipping"
+        )
+        return
+
+    payout.status = "refunded"
+    db.add(payout)
+    logger.info(f"Payout {merchant_tx_ref} marked as refunded")
+
+    try:
+        redis = get_redis()
+        await redis.delete(f"settle:finance:overview:{payout.tenant_id}")
+    except Exception:
+        pass
+
+
+_EVENT_HANDLERS = {
+    "payment_success": _handle_payment_success,
+    "payout_success": _handle_payout_success,
+    "payout_refund": _handle_payout_refund,
+}
+
+
 async def _record_misdirected(
     db: AsyncSession,
     data: dict,
@@ -226,11 +304,6 @@ async def _post_to_ledger(
 async def _advance_recurrence(
     db: AsyncSession, virtual_account: VirtualAccount
 ) -> None:
-    """
-    Only called for qualifying payment statuses (see QUALIFYING_STATUSES).
-    Underpayment never advances next_due_date — the period stays open until a
-    qualifying payment lands, per the spec.
-    """
     if virtual_account.collection_id is None:
         return
 
@@ -326,11 +399,6 @@ async def _publish_account_status(
     amount: Decimal,
     difference: Decimal | None,
 ) -> None:
-    """
-    Publishes a payment status event to the account-scoped Redis channel so the
-    customer's payment page receives a real-time update without polling.
-    Failures are swallowed — the SSE stream is best-effort, reconciliation is not.
-    """
     try:
         payload = json.dumps(
             {

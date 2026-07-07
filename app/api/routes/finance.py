@@ -97,7 +97,7 @@ async def withdraw(
         destination_account_name=bank_account.account_name,
         destination_bank_name=bank_account.bank_name,
         status=status.lower() if status else "pending",
-        transaction_ref=result.get("id", merchant_tx_ref),
+        transaction_ref=merchant_tx_ref,
         requested_at=now,
     )
     db.add(payout)
@@ -105,7 +105,7 @@ async def withdraw(
     await _bust_overview_cache(tenant.id)
 
     return WithdrawalResponse(
-        transaction_ref=result.get("id", merchant_tx_ref),
+        transaction_ref=merchant_tx_ref,
         amount=payload.amount,
         account_number=bank_account.account_number,
         account_name=bank_account.account_name,

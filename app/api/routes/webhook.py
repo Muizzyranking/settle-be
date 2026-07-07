@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.services.recouncilation import reconcile_payment
+from app.services.recouncilation import reconcile_event
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -88,7 +88,7 @@ async def nomba_webhook(
         )
 
     background_tasks.add_task(
-        reconcile_payment, payload=payload, raw_payload=body.decode()
+        reconcile_event, payload=payload, raw_payload=body.decode()
     )
 
     return JSONResponse(
