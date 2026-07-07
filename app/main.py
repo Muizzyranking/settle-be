@@ -4,13 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
-from app.db.database import init_db
 from app.db.redis import close_redis, init_redis
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
     await init_redis()
     yield
     await close_redis()

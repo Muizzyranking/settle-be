@@ -28,13 +28,6 @@ class Base(DeclarativeBase):
     pass
 
 
-async def init_db():
-    async with engine.begin() as conn:
-        import app.models  # noqa: F401
-
-        await conn.run_sync(Base.metadata.create_all)
-
-
 async def get_db() -> AsyncGenerator[AsyncSession]:
     async with AsyncSessionLocal() as session:
         try:
