@@ -1,7 +1,7 @@
 import json
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -90,16 +90,16 @@ async def _get_refund_candidates(
     return candidates, total_overpaid
 
 
-async def _get_available_balance(db: AsyncSession, tenant_id) -> float:
-    accounts = await db.scalars(
+async def _get_total_collected(db: AsyncSession, tenant_id) -> float:
+    account_ids = await db.scalars(
         select(VirtualAccount.id).where(VirtualAccount.tenant_id == tenant_id)
     )
-    account_ids = accounts.all()
-    if not account_ids:
+    ids = account_ids.all()
+    if not ids:
         return 0.0
 
     total = 0.0
-    for aid in account_ids:
+    for aid in ids:
         bal = await db.scalar(
             select(LedgerEntry.running_balance)
             .where(LedgerEntry.virtual_account_id == aid)
@@ -110,9 +110,31 @@ async def _get_available_balance(db: AsyncSession, tenant_id) -> float:
     return total
 
 
+async def _get_available_balance(db: AsyncSession, tenant_id) -> float:
+    collected = await _get_total_collected(db, tenant_id)
+
+    withdrawn = await db.scalar(
+        select(func.coalesce(func.sum(Payout.amount), 0)).where(
+            Payout.tenant_id == tenant_id, Payout.status == "paid"
+        )
+    ) or 0.0
+
+    refunded = await db.scalar(
+        select(func.coalesce(func.sum(Payout.amount), 0)).where(
+            Payout.tenant_id == tenant_id, Payout.status == "refunded"
+        )
+    ) or 0.0
+
+    return float(collected) - float(withdrawn) + float(refunded)
+
+
 async def _get_total_withdrawn(db: AsyncSession, tenant_id) -> float:
-    rows = await db.scalars(select(Payout.amount).where(Payout.tenant_id == tenant_id))
-    return sum(float(a) for a in rows.all())
+    total = await db.scalar(
+        select(func.coalesce(func.sum(Payout.amount), 0)).where(
+            Payout.tenant_id == tenant_id, Payout.status == "paid"
+        )
+    )
+    return float(total or 0.0)
 
 
 def _overview_cache_key(tenant_id) -> str:
