@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.eggs
+*.egg
+dist
+build
+*.so
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.tox
+
+# Virtual environments
+.venv
+venv
+env
+ENV
+
+# IDEs & editors
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker itself
+Dockerfile
+.dockerignore
+
+# Docs & specs (not needed at runtime)
+README.md
+SPEC.md
+
+test.sh
+
+# Local dev files
+.env
+.env.*
+!.env.example
+*.local
+
+alembic/versions/*.pyc
