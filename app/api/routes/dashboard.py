@@ -87,7 +87,7 @@ async def dashboard(
         {
             "id": str(t.id),
             "amount": float(t.amount),
-            "status": t.status.value,
+            "status": t.status.value if hasattr(t.status, "value") else t.status,
             "sender_name": t.sender_account_name,
             "paid_at": t.paid_at.isoformat() if t.paid_at else None,
         }
