@@ -7,19 +7,50 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentTenant, DBSession, get_current_tenant
 from app.db.database import get_db
+from app.db.redis import get_redis
 from app.models.account import VirtualAccount
 from app.models.ledger import LedgerEntry
+from app.models.payout import Payout
 from app.models.tenant import Tenant, TenantBankAccount
 from app.schemas.finance import (
+    FinanceOverviewOut,
+    FinancePayoutOut,
     RefundRequest,
     RefundResponse,
     WithdrawalRequest,
     WithdrawalResponse,
 )
+from app.services.finance import build_finance_overview, build_payouts_list
 from app.services.nomba.accounts import nomba_accounts
 from app.services.nomba.client import NombaAPIError
 
 router = APIRouter()
+
+
+async def _bust_overview_cache(tenant_id):
+    try:
+        redis = get_redis()
+        await redis.delete(f"settle:finance:overview:{tenant_id}")
+    except Exception:
+        pass
+
+
+@router.get("/overview", response_model=FinanceOverviewOut)
+async def finance_overview(
+    db: DBSession,
+    tenant: CurrentTenant,
+):
+    data = await build_finance_overview(db, tenant)
+    return FinanceOverviewOut(**data)
+
+
+@router.get("/payouts", response_model=list[FinancePayoutOut])
+async def finance_payouts(
+    db: DBSession,
+    tenant: CurrentTenant,
+):
+    data = await build_payouts_list(db, tenant)
+    return [FinancePayoutOut(**item) for item in data]
 
 
 @router.post("/withdraw", response_model=WithdrawalResponse)
@@ -56,6 +87,23 @@ async def withdraw(
             status_code=502, detail=f"Transfer failed: {exc.detail}"
         ) from exc
 
+    status = result.get("status", "PENDING")
+    now = datetime.now(timezone.utc)
+    payout = Payout(
+        tenant_id=tenant.id,
+        amount=payload.amount,
+        fee=0.0,
+        destination_account_number=bank_account.account_number,
+        destination_account_name=bank_account.account_name,
+        destination_bank_name=bank_account.bank_name,
+        status=status.lower() if status else "pending",
+        transaction_ref=result.get("id", merchant_tx_ref),
+        requested_at=now,
+    )
+    db.add(payout)
+
+    await _bust_overview_cache(tenant.id)
+
     return WithdrawalResponse(
         transaction_ref=result.get("id", merchant_tx_ref),
         amount=payload.amount,
@@ -63,7 +111,7 @@ async def withdraw(
         account_name=bank_account.account_name,
         bank_name=bank_account.bank_name,
         status=result.get("status", "PENDING"),
-        initiated_at=datetime.now(timezone.utc),
+        initiated_at=now,
     )
 
 
