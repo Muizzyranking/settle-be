@@ -18,9 +18,9 @@ from app.core.security import (
     hash_refresh_token,
     verify_password,
 )
+from app.db.redis import get_redis
 from app.models.auth_tokens import (
     EmailVerificationToken,
-    GoogleOAuthCode,
     PasswordResetToken,
     RefreshToken,
 )
@@ -76,12 +76,12 @@ async def _create_verification_token(tenant: Tenant, db: AsyncSession) -> str:
 def _queue_verification_email(
     background_tasks: BackgroundTasks, tenant: Tenant, raw_token: str
 ) -> None:
-    verify_url = f"{settings.FRONTEND_URL}/verify-email?token={raw_token}"
+    verify_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={raw_token}"
     background_tasks.add_task(
         email_service.send,
         to=tenant.email,
         subject="Verify your Settle account",
-        template="verification",
+        template="email_verification",
         context={
             "name": tenant.first_name or tenant.business_name,
             "verify_url": verify_url,
@@ -137,11 +137,11 @@ async def authenticate_tenant(
         payload.password, tenant.hashed_password or ""
     ):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not tenant.is_email_verified:
-        raise HTTPException(
-            status_code=403,
-            detail="Email not verified. Check your inbox or request a new verification email.",
-        )
+    # if not tenant.is_email_verified:
+    #     raise HTTPException(
+    #         status_code=403,
+    #         detail="Email not verified. Check your inbox or request a new verification email.",
+    #     )
 
     access_token, raw_refresh = await _issue_tokens(tenant, db)
     return access_token, raw_refresh, tenant
@@ -198,11 +198,6 @@ async def resend_verification(
     _queue_verification_email(background_tasks, tenant, raw_token)
 
 
-# ---------------------------------------------------------------------------
-# Password Reset
-# ---------------------------------------------------------------------------
-
-
 async def request_password_reset(
     email: str, db: AsyncSession, background_tasks: BackgroundTasks
 ) -> None:
@@ -243,7 +238,7 @@ async def reset_password(token: str, new_password: str, db: AsyncSession) -> Non
         raise HTTPException(status_code=404, detail="Account not found")
 
     tenant.hashed_password = hash_password(new_password)
-    tenant.token_version += 1  # invalidate all existing sessions
+    tenant.token_version += 1
     record.is_used = True
     db.add(tenant)
     db.add(record)
@@ -321,13 +316,13 @@ async def handle_google_callback(code: str, db: AsyncSession) -> str:
     await db.flush()
 
     raw_code = secrets.token_urlsafe(32)
-    db.add(
-        GoogleOAuthCode(
-            tenant_id=tenant.id,
-            code_hash=_hash_token(raw_code),
-            expires_at=datetime.now(timezone.utc)
-            + timedelta(minutes=GOOGLE_OAUTH_CODE_EXPIRE_MINUTES),
-        )
+    code_hash = _hash_token(raw_code)
+
+    redis = get_redis()
+    await redis.setex(
+        f"oauth:code:{code_hash}",
+        GOOGLE_OAUTH_CODE_EXPIRE_MINUTES * 60,
+        str(tenant.id),
     )
 
     return f"{settings.FRONTEND_URL}/auth/google/callback?code={raw_code}"
@@ -335,23 +330,12 @@ async def handle_google_callback(code: str, db: AsyncSession) -> str:
 
 async def exchange_google_code(code: str, db: AsyncSession) -> tuple[str, str, Tenant]:
     code_hash = _hash_token(code)
-    record = await db.scalar(
-        select(GoogleOAuthCode).where(
-            GoogleOAuthCode.code_hash == code_hash,
-            GoogleOAuthCode.is_used == False,  # noqa: E712
-        )
-    )
-    if not record:
-        raise HTTPException(
-            status_code=400, detail="Invalid or already used OAuth code"
-        )
-    if record.expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="OAuth code has expired")
+    redis = get_redis()
+    tenant_id = await redis.getdel(f"oauth:code:{code_hash}")
+    if tenant_id is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth code")
 
-    record.is_used = True
-    db.add(record)
-
-    tenant = await db.get(Tenant, record.tenant_id)
+    tenant = await db.get(Tenant, tenant_id)
     if not tenant or not tenant.is_active:
         raise HTTPException(status_code=404, detail="Account not found")
 

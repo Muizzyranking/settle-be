@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timezone
 from html import unescape
 
-import httpx
+import resend
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
 from app.core.config import settings
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     RESEND_API_URL = "https://api.resend.com/emails"
-    TEMPLATES_DIR = settings.BASE_DIR / "templates" / "emails"
+    TEMPLATES_DIR = settings.BASE_DIR / "templates" / "email"
 
     def __init__(self) -> None:
         self._env = Environment(
@@ -29,6 +29,7 @@ class EmailService:
         """
         return {
             "frontend_url": settings.FRONTEND_URL,
+            "support_email": settings.EMAIL_FROM,
             "year": datetime.now(timezone.utc).year,
         }
 
@@ -51,12 +52,11 @@ class EmailService:
 
     def render(
         self, template: str, context: dict | None = None
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[str | None, str]:
         merged = {**self._default_context(), **(context or {})}
-        html = self._render_optional(f"{template}/index.html", merged)
-        text = self._render_optional(f"{template}/index.txt", merged)
-        if text is None and html is not None:
-            text = self._strip_html(html)
+        html = self._render_optional(f"{template}.html", merged)
+        # text = self._render_optional(f"{template}/index.txt", merged)
+        text = self._strip_html(html or "")
         return html, text
 
     async def send(
@@ -80,31 +80,36 @@ class EmailService:
             )
             return
 
-        if html is None and text is None:
-            logger.error(
-                f"No index.html or index.txt found for template {template!r} — skipping email to {recipients}"
-            )
-            return
+        resend.api_key = settings.RESEND_API_KEY
+        resend.Emails.send(
+            {
+                "from": settings.EMAIL_FROM,
+                "to": recipients,
+                "subject": subject,
+                "html": html or "",
+                "text": text,
+            }
+        )
 
-        payload = {
-            "from": settings.EMAIL_FROM,
-            "to": recipients,
-            "subject": subject,
-            "text": text,
-        }
-        if html is not None:
-            payload["html"] = html
-
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                res = await client.post(
-                    self.RESEND_API_URL,
-                    headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
-                    json=payload,
-                )
-                res.raise_for_status()
-        except httpx.HTTPError as exc:
-            logger.warning(f"Email to {recipients} failed: {exc}")
+        # payload = {
+        #     "from": settings.EMAIL_FROM,
+        #     "to": recipients,
+        #     "subject": subject,
+        #     "text": text,
+        # }
+        # if html is not None:
+        #     payload["html"] = html
+        #
+        # try:
+        #     async with httpx.AsyncClient(timeout=10) as client:
+        #         res = await client.post(
+        #             self.RESEND_API_URL,
+        #             headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+        #             json=payload,
+        #         )
+        #         res.raise_for_status()
+        # except httpx.HTTPError as exc:
+        #     logger.warning(f"Email to {recipients} failed: {exc}")
 
 
 email_service = EmailService()
