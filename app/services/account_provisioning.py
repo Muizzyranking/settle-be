@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 import uuid
@@ -7,6 +8,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import Collection
 from app.models.account import VirtualAccount
 from app.models.collection import RecurringSchedule
 from app.services.nomba.accounts import nomba_accounts
@@ -63,6 +65,24 @@ def build_nomba_account_ref(tenant_id: uuid.UUID, customer_ref: str) -> str:
     return ref[:64]
 
 
+def _sanitize_account_name(name: str) -> str:
+    """
+    Clean a name so it is safe for bank APIs.
+    - Strip whitespace
+    - Remove brackets, emojis, and control characters
+    - Allow letters, numbers, spaces, and common punctuation (- . / &)
+    - Collapse multiple spaces
+    """
+    if not name:
+        return "Customer"
+
+    cleaned = name.strip()
+    cleaned = re.sub(r"[\[\]{}<>]", "", cleaned)
+    cleaned = re.sub(r"[^\w\s\-\.\/&]", "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned or "Customer"
+
+
 async def provision_account(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -88,6 +108,18 @@ async def provision_account(
             raise DuplicateCustomerRefError(
                 f"customer_ref '{customer_ref}' already exists for this tenant"
             )
+    safe_name = _sanitize_account_name(customer_name)
+
+    resolved_expected_amount = expected_amount
+    if resolved_expected_amount is None and collection_id is not None:
+        collection = await db.scalar(
+            select(Collection).where(
+                Collection.id == collection_id,
+                Collection.tenant_id == tenant_id,
+            )
+        )
+        if collection and collection.expected_amount is not None:
+            resolved_expected_amount = float(collection.expected_amount)
 
     schedule = None
     if collection_id is not None:
@@ -103,7 +135,7 @@ async def provision_account(
     try:
         nomba_data = await nomba_accounts.create_virtual_account(
             account_ref=nomba_account_ref,
-            account_name=customer_name,
+            account_name=safe_name,
             expected_amount=expected_amount,
             expiry_date=expires_at,
         )
@@ -122,7 +154,7 @@ async def provision_account(
     account = VirtualAccount(
         tenant_id=tenant_id,
         collection_id=collection_id,
-        customer_name=customer_name,
+        customer_name=safe_name,
         customer_ref=customer_ref,
         customer_email=customer_email,
         customer_phone=customer_phone,
@@ -130,7 +162,7 @@ async def provision_account(
         bank_account_number=nomba_data.get("bankAccountNumber"),
         bank_account_name=nomba_data.get("bankAccountName"),
         bank_name=nomba_data.get("bankName"),
-        expected_amount=Decimal(str(expected_amount))
+        expected_amount=Decimal(str(resolved_expected_amount))
         if expected_amount is not None
         else None,
         description=description,
@@ -142,7 +174,7 @@ async def provision_account(
     if customer_email:
         await notify_customer_payment_link(
             tenant_id=tenant_id,
-            customer_name=customer_name,
+            customer_name=safe_name,
             customer_email=customer_email,
             account_id=str(account.id),
             bank_account_number=account.bank_account_number,
