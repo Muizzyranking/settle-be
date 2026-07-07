@@ -13,4 +13,4 @@ RUN chmod +x scripts/docker-entrypoint.sh
 
 EXPOSE 8000
 
-CMD ["./scripts/docker-entrypoint.sh"]
+CMD ["./scripts/start.sh"]
