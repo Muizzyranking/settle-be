@@ -44,7 +44,7 @@ class NombaClient:
     async def _issue_token(self) -> str:
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
-                f"{self._base_url}/auth/token/issue",
+                f"{self._base_url}/v1/auth/token/issue",
                 headers={
                     "Content-Type": "application/json",
                     "accountId": settings.NOMBA_ACCOUNT_ID,
