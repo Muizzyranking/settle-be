@@ -42,6 +42,7 @@ class AccountOut(BaseModel):
     expected_amount: float | None
     description: str | None
     is_active: bool
+    total_paid: float
     next_due_date: datetime | None
     created_at: datetime
 

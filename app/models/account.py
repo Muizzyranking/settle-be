@@ -51,6 +51,7 @@ class VirtualAccount(BaseModel):
     expected_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    total_paid: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
