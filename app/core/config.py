@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str | None = None
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/auth/google/callback"
 
+    # Admin
+    ADMIN_API_KEY: str | None = None
+
     # Email (Resend)
     RESEND_API_KEY: str | None = None
     EMAIL_FROM: str = "notifications@settle.ng"
