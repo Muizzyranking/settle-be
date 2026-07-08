@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     accounts,
+    admin,
     auth,
     collections,
     dashboard,
@@ -17,6 +18,7 @@ from app.api.routes import (
 router = APIRouter()
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
 router.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
+router.include_router(admin.router, prefix="/admin", tags=["admin"])
 router.include_router(collections.router, prefix="/collections", tags=["collections"])
 router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 router.include_router(finance.router, prefix="/finance", tags=["finance"])
